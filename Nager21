@@ -1,0 +1,129 @@
+import React, { useState, useEffect } from 'react';
+import { Button, Input, Select, SelectItem, Checkbox, Loader2, Textarea } from '@/components/ui';
+import { motion } from 'framer-motion';
+import { Card, CardContent } from '@/components/ui/card';
+
+const languages = ['en', 'ar', 'fr', 'ur'];
+const types = ['quran', 'hadith'];
+const platforms = ['YouTube Shorts', 'TikTok', 'Instagram Reels'];
+
+export default function App() {
+  const [type, setType] = useState('quran');
+  const [language, setLanguage] = useState('en');
+  const [loading, setLoading] = useState(false);
+  const [videoUrl, setVideoUrl] = useState('');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [hashtags, setHashtags] = useState('');
+  
+  const togglePlatform = (platform: string) => {
+    setSelectedPlatforms(prev => prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]);
+  };
+
+  const handleGenerate = async () => {
+    setLoading(true);
+    setVideoUrl('');
+    const res = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content_type: type, language, title, description }),
+    });
+    const data = await res.json();
+    setVideoUrl(data.video_path);
+    setLoading(false);
+
+    // Send to selected platforms for posting via backend integration
+    console.log('Post to:', selectedPlatforms);
+    await handlePostToPlatforms(data.video_path);
+  };
+
+  const handlePostToPlatforms = async (videoPath: string) => {
+    // Backend logic for posting the video to the selected platforms
+    for (const platform of selectedPlatforms) {
+      const response = await fetch(`/post-to/${platform.toLowerCase()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoPath, title, description, hashtags }),
+      });
+      const data = await response.json();
+      console.log(`${platform} post response:`, data);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white p-8">
+      <motion.h1
+        className="text-4xl font-bold mb-6 text-center"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        AI Quran & Hadith Video Generator
+      </motion.h1>
+
+      <Card className="max-w-xl mx-auto bg-gray-900 shadow-2xl rounded-2xl">
+        <CardContent className="space-y-4 p-6">
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Content Type</label>
+            <Select value={type} onValueChange={setType}>
+              {types.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Language</label>
+            <Select value={language} onValueChange={setLanguage}>
+              {languages.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Title</label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Description</label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Hashtags (for TikTok/Instagram)</label>
+            <Input value={hashtags} onChange={(e) => setHashtags(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium">Auto-post to Platforms</label>
+            <div className="space-y-2">
+              {platforms.map(p => (
+                <div key={p} className="flex items-center space-x-2">
+                  <Checkbox id={p} checked={selectedPlatforms.includes(p)} onCheckedChange={() => togglePlatform(p)} />
+                  <label htmlFor={p} className="text-sm font-medium">{p}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Button className="w-full mt-4" onClick={handleGenerate} disabled={loading}>
+            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</> : 'Generate Video'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {videoUrl && (
+        <motion.div
+          className="mt-8 max-w-md mx-auto"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
+        >
+          <video controls className="rounded-xl shadow-lg w-full">
+            <source src={videoUrl} type="video/mp4" />
+            Your browser does not support the video tag.
+          </video>
+        </motion.div>
+      )}
+    </div>
+  );
+}
